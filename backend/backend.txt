@@ -1,0 +1,27 @@
+POST http://localhost:5000/api/users/login
+
+{
+    "email": "john@example.com",
+    "password": "password123"
+}
+
+
+POST http://localhost:5000/api/users/register
+
+{
+    "name": "John Doe",
+    "email": "john@example.com",
+    "password": "password123"
+}
+
+
+GET http://localhost:5000/api/requests/my-requests
+
+
+GET http://localhost:5000/api/recycling-centers
+
+
+
+POST http://localhost:5000/api/requests/create-request
+
+
