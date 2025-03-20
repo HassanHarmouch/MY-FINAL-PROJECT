@@ -1,17 +1,17 @@
 POST http://localhost:5000/api/users/login
 
 {
-    "email": "john@example.com",
-    "password": "password123"
+    "email": "hassan@gmail.com.com",
+    "password": "hassan123"
 }
 
 
 POST http://localhost:5000/api/users/register
 
 {
-    "name": "John Doe",
-    "email": "john@example.com",
-    "password": "password123"
+    "name": "hassan",
+    "email": "hassan@gmail.com.com",
+    "password": "hassan123"
 }
 
 
@@ -23,5 +23,19 @@ GET http://localhost:5000/api/recycling-centers
 
 
 POST http://localhost:5000/api/requests/create-request
+{
+    "materialType": "plastic",
+    "recyclingCenter": "67db56c20820acd89186757f"
+}
+
+
+PUT 
+ http://localhost:5000/api/users/change-password
+
+{
+   "oldPassword": "hassan123",
+   "newPassword": "hassan25"
+}
+
 
 
