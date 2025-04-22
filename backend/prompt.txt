@@ -1,0 +1,77 @@
+"Build a MERN stack web application using React (JSX), Node.js, Express.js, and MongoDB Atlas that serves as a recycling assistance platform. The application should include the following core features:
+
+1. User Registration (Optional)
+Users can access the Recycling Center Locator without registering.
+
+Registration is only required for users who want to request a pickup service.
+
+Implement authentication using JWT (JSON Web Tokens) for secure login/logout.
+
+Store user data securely in MongoDB Atlas.
+
+2. Recycling Center Locator
+Allow users to enter their location (via search bar or geolocation API).
+
+Display a list of nearby recycling centers based on their input.
+
+Each center should include contact details (phone number, WhatsApp link).
+
+Implement filters for material type: plastic, paper, glass, or metal.
+
+Use a Google Maps API (or OpenStreetMap API) for visualization.
+
+Optimize the search functionality with MongoDB’s geospatial indexing.
+
+3. Direct Communication with Recyclers
+Show contact details for each center (phone number, WhatsApp link).
+
+Ensure one-click communication (no in-app chat required).
+
+Use dynamic links for WhatsApp API integration.
+
+4. Reward System
+Implement a points system based on the type and amount of recyclables submitted.
+
+Store user reward points in MongoDB.
+
+Allow users to redeem points for discounts, vouchers, or eco-friendly products.
+
+Admin dashboard to manage reward programs.
+
+5. Smart Notifications & Reminders
+Notify users about new recycling centers, promotions, and environmental news.
+
+Set up personalized reminders to recycle based on their past activity.
+
+Use Firebase Cloud Messaging (FCM) or Web Push Notifications.
+
+6. Eco-Friendly Tips & Insights
+A dedicated section for articles, videos, and tips on sustainable living.
+
+Content should be dynamically fetched from a CMS or a database.
+
+Personalize recommendations based on the user’s recycling habits.
+
+Technical Requirements:
+Frontend: React.js with JSX, React Router for navigation, and Material UI for design.
+
+Backend: Node.js with Express.js as the API framework.
+
+Database: MongoDB Atlas for scalable cloud storage.
+
+Authentication: JWT-based user authentication.
+
+Geolocation API: Google Maps API (or OpenStreetMap) for location-based searches.
+
+Push Notifications: Firebase Cloud Messaging (FCM) or a WebSockets-based solution.
+
+Hosting: Deploy frontend on Vercel/Netlify, backend on Render/Heroku, and database on MongoDB Atlas.
+
+Bonus Enhancements:
+Add an Admin Dashboard to manage recycling center data and user rewards.
+
+Integrate AI-powered image recognition to detect recyclable materials.
+
+Support multi-language options for a wider audience.
+
+Ensure the application is secure, responsive, and optimized for performance. Provide well-structured API endpoints and follow best practices in MERN stack development."

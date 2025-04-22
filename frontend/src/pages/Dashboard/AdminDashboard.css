@@ -1,0 +1,55 @@
+/* AdminDashboard.css */
+
+/* Container for the entire dashboard */
+.admin-dashboard-container {
+    padding: 20px;
+    background-color: #f4f7fa;
+  }
+  
+  /* Title for the dashboard */
+  .dashboard-title {
+    text-align: center;
+    color: #333;
+    margin-bottom: 20px;
+    font-size: 2rem;
+  }
+  
+  /* Title for users section */
+  .users-title {
+    font-size: 1.5rem;
+    color: #555;
+    margin-bottom: 15px;
+  }
+  
+  /* Users list container */
+  .users-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  /* User card styling */
+  .user-card {
+    background-color: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  /* User name and email styling */
+  .user-name,
+  .user-email {
+    margin: 0;
+    font-size: 1rem;
+    color: #333;
+  }
+  
+  /* Hover effect for user cards */
+  .user-card:hover {
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+    transform: translateY(-2px);
+  }
+  

@@ -1,0 +1,514 @@
+auth.js:(const jwt = require('jsonwebtoken');
+require('dotenv').config();
+
+module.exports = function (requiredRole) {
+    return function (req, res, next) {
+        try {
+            const authHeader = req.header('Authorization');
+            if (!authHeader || !authHeader.startsWith('Bearer ')) {
+                return res.status(401).json({ success: false, message: 'Unauthorized: No token provided.' });
+            }
+
+            const token = authHeader.split(' ')[1];
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+            req.user = decoded; // Attach decoded user data to the request
+
+            // Check if the user has the required role
+            if (requiredRole && req.user.role !== requiredRole) {
+                return res.status(403).json({ success: false, message: 'Forbidden: Insufficient permissions' });
+            }
+
+            next(); // Proceed to the next middleware or route handler
+        } catch (err) {
+            console.error('JWT Verification Error:', err);
+            return res.status(401).json({ success: false, message: 'Unauthorized: Invalid or expired token.' });
+        }
+    };
+};
+)
+
+
+errorHandler.js:(module.exports = (err, req, res, next) => {
+    console.error(err.stack);
+    res.status(err.status || 500).json({ success: false, message: err.message || 'Internal Server Error' });
+};)
+
+notifications.js:(const express = require('express');
+const authMiddleware = require('../middleware/auth');
+const { updateNotificationPreferences } = require('../controllers/UserController');
+
+const router = express.Router();
+
+// Update notification preferences (protected route)
+router.put('/preferences', authMiddleware(), updateNotificationPreferences);
+
+module.exports = router;
+)
+
+
+RecyclingCenter.js:(const mongoose = require('mongoose');
+
+const RecyclingCenterSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    location: {
+        type: {
+            type: String,
+            enum: ['Point'],
+            required: true,
+        },
+        coordinates: {
+            type: [Number],
+            required: true,
+            validate: {
+                validator: function (value) {
+                    return value.length === 2;
+                },
+                message: 'Coordinates must be an array of [longitude, latitude].',
+            }
+        }
+    },
+    address: { type: String, required: true },
+    materialsAccepted: { type: [String], required: true }, // e.g. ['plastic', 'metal']
+    phone: { type: String, required: true }, // Contact phone number
+    whatsapp: { type: String }, // WhatsApp number (optional)
+}, { timestamps: true });
+
+// Ensure the geospatial index is created
+RecyclingCenterSchema.index({ location: '2dsphere' });
+
+const RecyclingCenter = mongoose.model('RecyclingCenter', RecyclingCenterSchema);
+module.exports = RecyclingCenter;)
+
+
+RecyclingCenterController.js:(const RecyclingCenter = require('../models/RecyclingCenter');
+
+exports.getRecyclingCenters = async (req, res) => {
+    try {
+        const { material, lat, lng, maxDistance } = req.query;
+
+        let query = {};
+        
+        // Filter by material type if provided
+        if (material) {
+            query.materialsAccepted = material;
+        }
+
+        // Filter by location if lat & lng are provided
+        if (lat && lng) {
+            query.location = {
+                $near: {
+                    $geometry: { type: "Point", coordinates: [parseFloat(lng), parseFloat(lat)] },
+                    $maxDistance: maxDistance ? parseFloat(maxDistance) : 5000, // Default 5km
+                }
+            };
+        }
+
+        const centers = await RecyclingCenter.find(query).select('name address phone whatsapp materialsAccepted location');
+
+        // Add WhatsApp click-to-chat link
+        const formattedCenters = centers.map(center => ({
+            ...center._doc,
+            whatsappLink: center.whatsapp ? `https://wa.me/${center.whatsapp.replace(/\D/g, '')}` : null
+        }));
+        res.json({ success: true, data: centers });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+exports.getRecyclingCenterById = async (req, res) => {
+    try {
+        const center = await RecyclingCenter.findById(req.params.id);
+        if (!center) return res.status(404).json({ success: false, error: 'Recycling center not found' });
+        res.json({ success: true, data: center });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+exports.addRecyclingCenter = async (req, res) => {
+    try {
+        const newCenter = new RecyclingCenter(req.body);
+        await newCenter.save();
+        res.status(201).json({ success: true, message: 'Recycling center created successfully', data: newCenter });
+    } catch (err) {
+        res.status(400).json({ success: false, error: err.message });
+    }
+};
+)
+
+
+recyclingCenters.js:(const express = require('express');
+const authMiddleware = require('../middleware/auth');
+const RecyclingCenter = require('../models/RecyclingCenter');
+const { createRecyclingRequest } = require('../controllers/RecyclingRequestController');
+const { getRecyclingCenters } = require('../controllers/RecyclingCenterController'); // Corrected import
+
+const router = express.Router();
+
+// POST request to create a new recycling request (with authentication)
+router.post('/create-request', authMiddleware(), createRecyclingRequest);
+
+// Route to get recycling centers with filtering
+router.get('/', authMiddleware(),getRecyclingCenters);
+
+
+
+// GET a specific recycling center by ID
+router.get('/:id', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const recyclingCenter = await RecyclingCenter.findById(id).select('name address phone whatsapp materialsAccepted location');
+        if (!recyclingCenter) {
+            return res.status(404).json({
+                success: false,
+                message: 'Recycling Center not found',
+            });
+        }
+        res.status(200).json({
+            success: true,
+            data: {
+                ...recyclingCenter._doc,
+                whatsappLink: recyclingCenter.whatsapp ? `https://wa.me/${recyclingCenter.whatsapp.replace(/\D/g, '')}` : null
+            }
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error while fetching recycling center',
+        });
+    }
+});
+
+module.exports = router;
+)
+
+RecyclingRequest.js:(const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
+
+const recyclingRequestSchema = new Schema({
+  materialType: { type: String, required: true },
+  recyclingCenter: { type: mongoose.Schema.Types.ObjectId, ref: 'RecyclingCenter', required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+});
+
+const RecyclingRequest = mongoose.model('RecyclingRequest', recyclingRequestSchema);
+module.exports = RecyclingRequest;)
+
+RecyclingRequestController.js:(const RecyclingRequest = require('../models/RecyclingRequest');
+const RecyclingCenter = require('../models/RecyclingCenter');
+const User = require('../models/User');
+const createRecyclingRequest = async (req, res) => {
+    const { materialType, recyclingCenter } = req.body;
+    const userId = req.user.id;  // Get userId from decoded token (authMiddleware)
+
+    try {
+        // Ensure recycling center exists
+        const center = await RecyclingCenter.findById(recyclingCenter);
+        if (!center) {
+            return res.status(400).json({ success: false, message: 'Recycling center not found' });
+        }
+
+        // Create new recycling request
+        const newRequest = new RecyclingRequest({
+            materialType,
+            recyclingCenter,
+            userId,
+        });
+
+        await newRequest.save();
+
+ // Award points based on the material type (e.g., 10 points for each request)
+ const pointsAwarded = 10;  // Customize this logic
+ const user = await User.findById(userId);
+ user.points += pointsAwarded;
+ await user.save();
+
+
+
+
+
+        res.status(201).json({
+            success: true,
+            message: `Recycling request created and ${pointsAwarded} points awarded!`,
+            data: newRequest,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+module.exports = { createRecyclingRequest };
+)
+
+
+
+recyclingRequests.js:(const express = require('express');
+const authMiddleware = require('../middleware/auth');
+const RecyclingRequest = require('../models/RecyclingRequest');
+const { createRecyclingRequest } = require('../controllers/RecyclingRequestController');
+
+const router = express.Router();
+
+// POST request to create a new recycling request (with authentication)
+router.post('/create-request', authMiddleware(), createRecyclingRequest);
+
+// GET request to fetch all recycling requests for the authenticated user
+router.get('/my-requests', authMiddleware(), async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const requests = await RecyclingRequest.find({ userId });
+
+        if (requests.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'No requests found for this user',
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: requests,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error while fetching requests',
+        });
+    }
+});
+
+module.exports = router;
+)
+
+
+server.js:(// server.js
+require('dotenv').config();
+const express = require('express');
+const mongoose = require('mongoose');
+
+// Initialize express app
+const app = express();
+
+// Middleware for JSON parsing
+app.use(express.json());
+
+// Routes
+app.use('/api/users', require('./routes/users')); // User routes
+app.use('/api/requests', require('./routes/recyclingRequests')); // Recycling requests routes
+app.use('/api/recycling-centers', require('./routes/recyclingCenters')); // Recycling centers routes
+app.use('/api/notifications', require('./routes/notifications'));
+
+// MongoDB connection
+mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+    .then(() => console.log('MongoDB Connected'))
+    .catch(err => console.error('MongoDB connection error:', err));
+
+// Error handler middleware (should be placed after routes)
+const errorHandler = require('./middleware/errorHandler');
+app.use(errorHandler);
+
+// Start the server
+const port = process.env.PORT || 5000;
+app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+});
+)
+
+
+User.js:(const mongoose = require('mongoose');  // Add this line to import mongoose
+const bcrypt = require('bcryptjs');  // Import bcryptjs here
+const UserSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
+    role: { type: String, enum: ['user', 'admin'], default: 'user' },
+    profilePicture: { type: String },  // URL or file path for profile picture
+    address: { type: String },  // User's address
+    phoneNumber: { type: String }, // Optional phone number
+    points: { type: Number, default: 0 },  // Reward points
+
+    lastRecyclingActivity: { type: Date, default: null }, // Last recycling action
+    notificationPreferences: {
+        reminders: { type: Boolean, default: true }, // Recycling reminders
+        news: { type: Boolean, default: true }, // Environmental news & promotions
+    },
+
+    recyclingHistory: [{
+        date: { type: Date, default: Date.now },
+        materialType: { type: String }, // Plastic, Paper, etc.
+        weight: { type: Number }, // In kg
+        pointsEarned: { type: Number, default: 0 }
+    }],
+
+    badges: [{ type: String }], // List of earned badges
+
+}, { timestamps: true });
+
+// Hash password before saving
+UserSchema.pre('save', async function (next) {
+    if (!this.isModified('password')) return next();
+    this.password = await bcrypt.hash(this.password, 10);
+    next();
+});
+
+module.exports = mongoose.model('User', UserSchema);)
+
+
+UserController.js:(const User = require('../models/User');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+
+exports.updateProfile = async (req, res) => {
+    try {
+        const { name, email, profilePicture, address } = req.body;
+        const user = await User.findById(req.user.id);
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        user.name = name || user.name;
+        user.email = email || user.email;
+        user.profilePicture = profilePicture || user.profilePicture;
+        user.address = address || user.address;
+
+        await user.save();
+
+        res.json({ success: true, message: 'Profile updated successfully', data: user });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+exports.updateNotificationPreferences = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        // Update notification preferences
+        user.notificationPreferences = {
+            reminders: req.body.reminders ?? user.notificationPreferences.reminders,
+            news: req.body.news ?? user.notificationPreferences.news,
+        };
+
+        await user.save();
+        res.json({ success: true, message: 'Notification preferences updated', data: user.notificationPreferences });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
+    }
+};
+
+exports.getUserPoints = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        res.json({ success: true, points: user.points });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+exports.changePassword = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'User not found' });
+        }
+
+        const { oldPassword, newPassword } = req.body;
+        
+        // Check if old password is correct
+        const isMatch = await bcrypt.compare(oldPassword, user.password);
+        if (!isMatch) {
+            return res.status(400).json({ success: false, error: 'Old password is incorrect' });
+        }
+
+        // Hash and update password
+        user.password = await bcrypt.hash(newPassword, 10);
+await user.save();
+console.log("Updated password hash: ", user.password);  // Debugging line
+
+
+        // Generate a new token after the password change
+        const newToken = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '24h' });
+
+        // Send the response with the new token
+        res.json({ success: true, message: 'Password changed successfully', token: newToken });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
+    }
+};
+
+exports.register = async (req, res) => {
+    try {
+        const newUser = new User(req.body);
+        await newUser.save();
+        res.status(201).json({ success: true, message: 'User registered successfully' });
+    } catch (err) {
+        res.status(400).json({ success: false, error: err.message || 'Failed to register user' });
+    }
+};
+
+exports.login = async (req, res) => {
+    try {
+        const user = await User.findOne({ email: req.body.email });
+        if (!user) {
+            return res.status(401).json({ success: false, error: 'Invalid credentials' });
+        }
+
+        // Compare the password with the hashed password stored in the database
+        const isMatch = await bcrypt.compare(req.body.password, user.password);
+        if (!isMatch) {
+            return res.status(401).json({ success: false, error: 'Invalid credentials' });
+        }
+
+        // Generate a new JWT token after login
+        const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '24h' });
+
+        res.json({ success: true, token, user: { id: user._id, name: user.name, role: user.role } });
+    } catch (err) {
+        console.error(err); // Log the error for debugging
+        res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
+    }
+};
+)
+
+
+users.js:(const express = require('express');
+const {
+    register,
+    login,
+    updateProfile,
+    changePassword
+} = require('../controllers/UserController');
+const authMiddleware = require('../middleware/auth');
+
+const router = express.Router(); // ✅ Initialize router first
+
+// Public routes (accessible without authentication)
+router.post('/register', register);
+router.post('/login', login);
+
+const { getUserPoints } = require('../controllers/UserController');
+router.get('/points', authMiddleware(), getUserPoints);
+
+
+// Protected routes (require authentication)
+router.put('/profile', authMiddleware(), updateProfile);
+router.put('/change-password', authMiddleware(), changePassword);
+
+// Example: If you want an admin-only route, use authMiddleware('admin')
+// router.delete('/admin/delete-user/:id', authMiddleware('admin'), deleteUser);
+
+module.exports = router; // ✅ Export router at the end
+)
+
+

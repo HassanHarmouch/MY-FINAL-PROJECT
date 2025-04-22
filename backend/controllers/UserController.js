@@ -86,14 +86,33 @@ console.log("Updated password hash: ", user.password);  // Debugging line
 };
 
 exports.register = async (req, res) => {
-    try {
-        const newUser = new User(req.body);
-        await newUser.save();
-        res.status(201).json({ success: true, message: 'User registered successfully' });
-    } catch (err) {
-        res.status(400).json({ success: false, error: err.message || 'Failed to register user' });
+    const { name, email, password, address, profilePicture } = req.body;
+  
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'Name, email and password are required' });
     }
-};
+  
+    try {
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        return res.status(400).json({ error: 'Email already registered' });
+      }
+  
+      const newUser = new User({
+        name,
+        email,
+        password,
+        address,
+        profilePicture,
+      });
+  
+      await newUser.save();
+      res.status(201).json({ message: 'User registered successfully' });
+    } catch (err) {
+      res.status(500).json({ error: 'Server error while registering user' });
+    }
+  };
+  
 
 exports.login = async (req, res) => {
     try {
@@ -115,5 +134,62 @@ exports.login = async (req, res) => {
     } catch (err) {
         console.error(err); // Log the error for debugging
         res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
+    }
+};
+exports.loginWithGoogle = async (req, res) => {
+  try {
+    const { googleId, email } = req.body;
+    console.log("Google UID:", googleId);
+    console.log("Google Email:", email);
+
+    const user = await User.findOne({ googleId, email });
+
+    if (!user) {
+      return res.status(401).json({ message: "User not registered or email does not match." });
+    }
+
+    // ✅ Generate token
+    const token = createSendToken(user, 200, res); // This already sends a response!
+
+    console.log("Generated Token:", token); // Debugging
+
+    // ✅ Only return if token is valid (Avoids second response)
+    if (!token) {
+      return res.status(500).json({ message: "Token generation failed" });
+    }
+
+  } catch (err) {
+    console.error("Google login error:", err);
+
+    // ✅ Ensure error response is sent only ONCE
+    if (!res.headersSent) {
+      res.status(500).json({ message: "Google login failed" });
+    }
+  }
+};
+exports.getProfile = async (req, res) => {
+    try {
+        // Explicitly select the points field
+        const user = await User.findById(req.user.id).select('name email profilePicture address points');
+        
+        if (!user) {
+            return res.status(404).json({ success: false, error: "User not found" });
+        }
+
+        console.log('User from DB:', user); // Verify points value in logs
+
+        return res.json({
+            success: true,
+            data: {
+                name: user.name,
+                email: user.email,
+                profilePicture: user.profilePicture,
+                address: user.address,
+                points: user.points || 0 // Fallback to 0 if undefined
+            }
+        });
+    } catch (error) {
+        console.error('Profile error:', error);
+        return res.status(500).json({ success: false, error: 'Server error' });
     }
 };

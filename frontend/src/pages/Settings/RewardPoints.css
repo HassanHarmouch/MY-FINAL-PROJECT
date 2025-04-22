@@ -1,0 +1,46 @@
+/* RewardPoints.css */
+
+/* Container for the reward points page */
+.reward-points-container {
+    padding: 30px;
+    background-color: #f9f9f9;
+    max-width: 800px;
+    margin: 0 auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    background-color: #ffffff;
+  }
+  
+  /* Heading for the reward points section */
+  .reward-points-heading {
+    font-size: 2rem;
+    color: #333;
+    text-align: center;
+    margin-bottom: 20px;
+    font-weight: bold;
+  }
+  
+  /* Styling for the points display */
+  .reward-points {
+    font-size: 1.2rem;
+    color: #444;
+    text-align: center;
+    font-weight: bold;
+    margin-top: 10px;
+  }
+  
+  /* Adding animation for points display */
+  .reward-points-container {
+    animation: fadeIn 1s ease-in-out;
+  }
+  
+  /* Fade-in animation for the container */
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
